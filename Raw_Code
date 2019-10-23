@@ -1,0 +1,1485 @@
+Option Explicit
+
+Dim h, j, k, l As Integer, Moodys_Cl_A_Rating As String, Moodys_Cl_B_Rating As String
+Dim SP_Cl_A_Rating As String, SP_Cl_B_Rating As String, Monitoring As Boolean
+Dim Cl_A_Yield_Reduction As Double, Cl_B_Yield_Reduction As Double
+Dim Cl_A_Default_Rate As Double, Cl_B_Default_Rate As Double
+Dim Monte_Carlo As Integer, Monte_Carlo_Runs As Integer
+Dim Loss_Rate As Double, Rating_Scale_Array_M As Variant, Rating_Scale_Array_S As Variant
+Dim Convergence_Criterion As Double, Class_A_Relaxation_Factor As Double, Class_B_Relaxation_Factor As Double
+Dim Start_Time As Double, End_Time As Double, Elapsed_Time As Double, Non_Linear_Limit As Integer
+Dim r_infinity As Double, alfa_parm As Double, beta_parm As Double, delta_parm
+Dim Delta_A As Double, Delta_B As Double, Yield_A As Double, Yield_B As Double, WAL_A As Double, WAL_B As Double
+Dim WAL_A_Index As Integer, WAL_B_Index As Integer, Non_Linear_Index As Integer
+Dim New_Class_A_Rate As Double, New_Class_B_Rate As Double, Epsilon As Double
+Public IRRa As Double, IRRb As Double, DIRRa As Double, DIRRb As Double
+Public N_Out() As Integer, Total_Opex(), idle() As Boolean
+
+'Asser Part Parameter Definition
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public Term, Ships, UsefulLife As Integer
+Public MarketValue As Double, ProbofSold As Double, ExpirationDate As Date
+Public LengthUnit As String, Rate() As Double, Opex() As Double
+Public StartDate As Date, StartT() As Integer
+Public Lease_Count() As Integer, Lease() As Integer, CharterLength() As Integer
+Public ScrapValue() As Double, YearBuilt() As Integer, TodayAge() As Integer
+Public ReleaseInterval_Countdown() As Integer, Capacity() As Integer, Age() As Integer
+Public ScrapIncome() As Double, Revenue() As Double, Total_Revenue() As Double
+Public Amort() As Double, Total_Amort() As Double, Total_ScrapIncome() As Double, Total_Sales() As Double
+Public IsSold() As Boolean, sValue() As Double, HasBeenScrap() As Boolean
+Public TodayAge_initial(), Capacity_initial(), ScrapValue_initial(), sValue_initial(), Blend_Return() As Variant
+Public CharterLength_initial(), Rate_initial(), Opex_initial(), ExpirationDate_initial() As Variant
+
+Public ExecutedOnce() As Boolean
+Public t As Integer 'Month 1 to 360
+Public i As Integer 'No. 1 to 25 ship
+Public a As Integer, B As Integer, ReleaseInterval As Integer 'releasing intervals, uniform distribution
+Public UninflatedRate() As Double, y As Integer, M As Integer
+Public InflationRate As Double, V As Double, WAI As Double, ReleaseRound As Double
+Public SInflationFactor(1 To 25) As Double
+Public InflationAnnFactor(1 To 50) As Double
+Public InflationMonFactor(1 To 50) As Double
+Public Opex_InflationRate() As Double, Mgmt() As Double
+
+'Liability Part Variable Definition
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public MRperShip() As Double 'maintenance reserve per ship per year
+Public RAratio As Double 'Interest reserve account ratio
+Public IPB As Double 'initial pool balance
+Public WAImonth As Integer 'target number of months of WAI in reserve account
+Public IR As Double 'eligible investment rate (APR)
+Public DR As Double
+Public initial_maintenance_reserve As Double, initial_interest_reserve As Double
+Public Cl_A_Rate As Double, Cl_B_Rate As Double, Cl_C_Rate As Double
+Public Cl_A_Size As Double, Cl_B_Size As Double, Cl_C_Size As Double
+Public Cl_A_Bal As Double, Cl_B_Bal As Double, Cl_C_Bal As Double
+Public Cl_A_M As Double, Cl_B_M As Double, Cl_C_M As Double
+Public Cl_A_MP As Double, Cl_B_MP As Double, q As Integer
+Public aM As Integer, bM As Integer
+Public F0(), F1(), F2(), F3(), F4(), F5(), F6(), F7(), F8(), F9(), F10(), F11(), F12() As Double
+Public N As Integer, RdM As Double, RdR As Double
+Public RrM As Double, RaM() As Double, RS() As Double
+Public PA() As Double, PAP() As Double, PAS() As Double
+Public PB(), PBP() As Double, PBS() As Double
+Public PC() As Double, PCP() As Double, PCS() As Double
+Public ALa As Variant, ALb As Variant, IRR As Double
+
+Public CurrentCollection() As Double
+Public BalA() As Double, BalB() As Double, BalC() As Double
+Public BegMR() As Double, BegRA() As Double
+Public s(), SP(), SS() As Double, Management_Fee(), MFee_Ratio As Double
+Public IA() As Double, IAP() As Double, IAS() As Double
+Public IB() As Double, IBP() As Double, IBS() As Double
+Public EndMR(), EndRA() As Double, RrR() As Double, RaR() As Double
+Public IC() As Double, ICP() As Double, ICS() As Double
+Public CICP() As Double, Fa() As Double, Fb() As Double
+Public AAmort() As Double, BAmort() As Double, DSCR() As Double, QMADSCR() As Double
+Public Month() As Integer, TACa() As Double, TACb() As Double
+Public PMTa As Range, PMTb As Range, PMTc As Range
+
+Public ct As Integer
+Public ScrapInf_Lower As Double, ScrapInf_Upper, ScrapInf_alpha, ScrapInf_beta As Double
+Public Inf_Lower, Inf_Upper, Inf_alpha, Inf_beta As Double
+Public AnnualInflationRate, product, Sale_prob, New_A, New_B As Double
+Public Opex_Lower, Opex_Upper, Opex_alpha, Opex_beta As Double
+Public BasicOpex, AddOpex As Double, TotalOpex As Double, Scrap_Sum As Double, Scrap_Adj As Double
+Public myTableArray201, myTableArray202, myTableArray141, myTableArray142 As Range
+Public myTableArray091, myTableArray092, myTableArray01, myTableArray02 As Range
+Public Sales1_Lower, Sales1_Upper, Sales1_alpha, Sales1_beta As Double
+Public Sales2_Lower, Sales2_Upper, Sales2_alpha, Sales2_beta As Double
+Public Sales3_Lower, Sales3_Upper, Sales3_alpha, Sales3_beta As Double
+Public Sales4_Lower, Sales4_Upper, Sales4_alpha, Sales4_beta As Double
+Public One_Scenario, Run_Linear As Boolean, Maintaince_Adj As Double, Periods As Integer
+Public Incentive_fee, Blend_IRR As Double, Seed As Double, go_rnd As Boolean
+Public Idle_Lower, Idle_Upper, Idle_alpha, Idle_beta, Idle_Mean As Double
+Public Lease_Term_Adj, closing_fee As Double, Bospoke_TAC As Boolean
+Public Survey_Matrix As Range
+
+
+Function Yield_Curve(Time As Double, IRR_Drop As Double)
+'
+' Yield Curve Model = Treasury Curve + Credit Spread (this simple model does not include a liquidity premium)
+' A liquidity spread can be trivially added in.
+'
+Yield_Curve = r_infinity / (1 + beta_parm * Exp(-delta_parm * (Time / 12))) + alfa_parm * Sqr((Time / 12) * 0.01 * IRR_Drop)
+
+End Function
+
+
+
+Sub main()
+
+Application.Calculation = xlCalculationManual
+Application.DisplayStatusBar = False
+Application.ScreenUpdating = False
+Application.EnableEvents = False
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Worksheets("Cash Flows").Cells(7, 5).Value = 0
+Worksheets("Cash Flows").Cells(9, 5).Value = 0
+
+
+Start_Time = Now()
+
+Monte_Carlo_Runs = Worksheets("Cash Flows").Range("Monte_Carlo_Runs").Value
+
+Monitoring = Worksheets("Cash Flows").Range("Monitor").Value
+
+If Worksheets("Cash Flows").Range("One_Scenario").Value = "Y" Then
+One_Scenario = True
+Else: One_Scenario = False
+End If
+
+If Worksheets("Cash Flows").Range("Run_Linear").Value = "Y" Then
+Run_Linear = True
+Else: Run_Linear = False
+End If
+
+
+'
+' Set Up the Non-Linear Convergence Algorithm
+'
+r_infinity = Worksheets("Cash Flows").Range("Yield_Curve_r_infinity").Value
+alfa_parm = Worksheets("Cash Flows").Range("Yield_Curve_alfa_parm").Value
+beta_parm = Worksheets("Cash Flows").Range("Yield_Curve_beta_parm").Value
+delta_parm = Worksheets("Cash Flows").Range("Yield_Curve_delta_parm").Value
+Class_A_Relaxation_Factor = Worksheets("Cash Flows").Range("Class_A_Relaxation").Value
+Class_B_Relaxation_Factor = Worksheets("Cash Flows").Range("Class_B_Relaxation").Value
+Non_Linear_Limit = Worksheets("Cash Flows").Range("Convergence_Limit").Value
+
+Non_Linear_Index = 0
+Epsilon = Worksheets("Cash Flows").Range("Epsilon").Value
+
+Worksheets("Cash Flows").Range("Convergence_Status").Value = "Iteration 0"
+
+
+'table setup''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Set the Moody's rating scale array
+With Worksheets("Input Assumptions")
+Set Rating_Scale_Array_M = .Range(.Cells(21, 18), .Cells(38, 19))
+End With
+
+' Set ship survey matrix
+With Worksheets("Survey")
+Set Survey_Matrix = .Range(.Cells(2, 1), .Cells(17, 7))
+End With
+
+
+' Set ship property vlookup table 20
+With Worksheets("LR20+")
+Set myTableArray201 = .Range(.Cells(2, 3), .Cells(467, 4))
+Set myTableArray202 = .Range(.Cells(2, 4), .Cells(467, 10))
+End With
+
+' Set ship property vlookup table 14-19
+With Worksheets("LR14-19")
+Set myTableArray141 = .Range(.Cells(2, 3), .Cells(931, 4))
+Set myTableArray142 = .Range(.Cells(2, 4), .Cells(931, 10))
+End With
+                                              
+' Set ship property vlookup table 9-13
+With Worksheets("LR9-13")
+Set myTableArray091 = .Range(.Cells(2, 3), .Cells(1933, 4))
+Set myTableArray092 = .Range(.Cells(2, 4), .Cells(1933, 10))
+End With
+
+' Set ship property vlookup table 0-8
+With Worksheets("LR0-8")
+Set myTableArray01 = .Range(.Cells(2, 3), .Cells(688, 4))
+Set myTableArray02 = .Range(.Cells(2, 4), .Cells(688, 10))
+End With
+
+
+'Constent initialize
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Term = Worksheets("Input Assumptions").Range("Term").Value
+Ships = Worksheets("Input Assumptions").Range("Ships").Value
+UsefulLife = Worksheets("Input Assumptions").Range("UsefulLife ").Value
+Sale_prob = Worksheets("Input Assumptions").Range("Sales").Value
+Incentive_fee = Worksheets("Input Assumptions").Range("Incentive_fee").Value
+MFee_Ratio = Worksheets("Input Assumptions").Range("MFee_Ratio").Value
+Lease_Term_Adj = Worksheets("Input Assumptions").Range("Lease_Term_Adj").Value
+Periods = Worksheets("Input Assumptions").Range("periods").Value
+Maintaince_Adj = Worksheets("Input Assumptions").Range("maintaince_adj").Value
+Scrap_Adj = Worksheets("Input Assumptions").Range("scrap_adj").Value
+
+'scrapvalue inflation constent parameters
+ScrapInf_Lower = Worksheets("Input Assumptions").Range("ScrapInf_L").Value
+ScrapInf_Upper = Worksheets("Input Assumptions").Range("ScrapInf_U").Value
+ScrapInf_alpha = Worksheets("Input Assumptions").Range("ScrapInf_alpha").Value
+ScrapInf_beta = Worksheets("Input Assumptions").Range("ScrapInf_beta").Value
+
+'rates inflation constent parameters
+Inf_Lower = Worksheets("Input Assumptions").Range("Inf_Lower").Value
+Inf_Upper = Worksheets("Input Assumptions").Range("Inf_Upper").Value
+Inf_alpha = Worksheets("Input Assumptions").Range("Inf_alpha").Value
+Inf_beta = Worksheets("Input Assumptions").Range("Inf_beta").Value
+
+'operating expense constent parameters
+Opex_Lower = Worksheets("Input Assumptions").Range("Opex_L").Value
+Opex_Upper = Worksheets("Input Assumptions").Range("Opex_U").Value
+Opex_alpha = Worksheets("Input Assumptions").Range("Opex_alpha").Value
+Opex_beta = Worksheets("Input Assumptions").Range("Opex_beta").Value
+
+'impromptusales constent parameters
+'input parameters of beta distributions in terms of four buckets
+Sales1_Lower = Worksheets("Input Assumptions").Range("Sales1_L").Value
+Sales1_Upper = Worksheets("Input Assumptions").Range("Sales1_U").Value
+Sales1_alpha = Worksheets("Input Assumptions").Range("Sales1_alpha").Value
+Sales1_beta = Worksheets("Input Assumptions").Range("Sales1_beta").Value
+Sales2_Lower = Worksheets("Input Assumptions").Range("Sales2_L").Value
+Sales2_Upper = Worksheets("Input Assumptions").Range("Sales2_U").Value
+Sales2_alpha = Worksheets("Input Assumptions").Range("Sales2_alpha").Value
+Sales2_beta = Worksheets("Input Assumptions").Range("Sales2_beta").Value
+Sales3_Lower = Worksheets("Input Assumptions").Range("Sales3_L").Value
+Sales3_Upper = Worksheets("Input Assumptions").Range("Sales3_U").Value
+Sales3_alpha = Worksheets("Input Assumptions").Range("Sales3_alpha").Value
+Sales3_beta = Worksheets("Input Assumptions").Range("Sales3_beta").Value
+Sales4_Lower = Worksheets("Input Assumptions").Range("Sales4_L").Value
+Sales4_Upper = Worksheets("Input Assumptions").Range("Sales4_U").Value
+Sales4_alpha = Worksheets("Input Assumptions").Range("Sales4_alpha").Value
+Sales4_beta = Worksheets("Input Assumptions").Range("Sales4_beta").Value
+
+'Lease release interval constent parameters
+Idle_Lower = Worksheets("Input Assumptions").Range("Idle_L").Value
+Idle_Upper = Worksheets("Input Assumptions").Range("Idle_U").Value
+Idle_alpha = Worksheets("Input Assumptions").Range("Idle_alpha").Value
+Idle_beta = Worksheets("Input Assumptions").Range("Idle_beta").Value
+Idle_Mean = Worksheets("Input Assumptions").Range("Idle_M").Value
+
+'additional closing fees
+closing_fee = Worksheets("Input Assumptions").Range("closing_fee").Value
+
+'Enable "use same random number"
+If Worksheets("Input Assumptions").Range("Seed").Value = "Y" Then
+Seed = -1
+Else
+Seed = 100 * Rnd()
+Randomize
+End If
+
+
+
+V = 0
+
+
+''''''''''''''''''''''initialize global variables''''''''''''''''''''''''
+
+ReDim YearBuilt(Ships)
+ReDim Amort(Ships)
+ReDim TodayAge_initial(Ships)
+ReDim Capacity_initial(Ships)
+ReDim ScrapValue_initial(Ships)
+ReDim sValue_initial(Ships)
+ReDim CharterLength_initial(Ships)
+ReDim Rate_initial(Ships)
+ReDim Opex_initial(Ships)
+ReDim SurExp_initial(Ships)
+ReDim ExpirationDate_initial(Ships)
+ReDim Mgmt(Term), MRperShip(Term)
+
+'Ship market value''''''''''''''''''''''''''''''''''''''''''''
+For i = 1 To Ships
+
+        MarketValue = Worksheets("Input Assumptions").Cells(3 + i, 9).Value
+        'calculate initial cost of the ships
+        V = V + MarketValue * 1000000 'in dollars
+        YearBuilt(i) = Worksheets("Input Assumptions").Cells(3 + i, 2).Value
+        Amort(i) = (MarketValue * 1000000) / ((UsefulLife - (2019 - YearBuilt(i))) * 12) 'Amortization of every ship each month
+        
+        TodayAge_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 3).Value
+        Capacity_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 5).Value
+        ScrapValue_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 10).Value
+        sValue_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 10).Value
+        CharterLength_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 12).Value
+        Rate_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 14).Value
+        Opex_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 15).Value
+        ExpirationDate_initial(i) = Worksheets("Input Assumptions").Cells(3 + i, 11).Value
+        Scrap_Sum = Scrap_Sum + sValue_initial(i) * 1000000
+Next i
+
+
+Scrap_Sum = Scrap_Sum * (Scrap_Adj / 460)
+
+
+''''''''''''''''''''''Survey expense parameters''''''''''''''''''''''''
+For i = 0 To Term
+Mgmt(i) = Worksheets("Survey").Cells(4 + i, 10).Value  'maintenance reserve per ship per month
+MRperShip(i) = 0
+Next i
+
+For i = 0 To Term - Periods - 1
+
+    For k = (i + 1) To (i + Periods)
+    MRperShip(i) = MRperShip(i) + Mgmt(k)
+    Next k
+    
+    MRperShip(i) = MRperShip(i) * Maintaince_Adj
+Next i
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+RAratio = Worksheets("Cash Flows").Range("Reserve_Account").Value 'Interest reserve account ratio
+
+'calculate Initial Pool Balance
+IPB = V + MRperShip(0) + RAratio * V + closing_fee 'initial pool balance
+
+WAImonth = Worksheets("Cash Flows").Range("n").Value 'target number of months of WAI in reserve account
+WAI = Worksheets("Cash Flows").Range("WAI").Value
+IR = Worksheets("Cash Flows").Range("Investment_Rate").Value 'eligible investment rate (APR)
+
+
+Cl_A_Rate = Worksheets("Cash Flows").Range("Class_A_Rate").Value
+Cl_B_Rate = Worksheets("Cash Flows").Range("Class_B_Rate").Value
+New_A = Cl_A_Rate
+New_B = Cl_B_Rate
+Cl_C_Rate = Worksheets("Cash Flows").Range("Class_C_Rate").Value
+
+Cl_A_Size = Worksheets("Cash Flows").Range("Class_A_Size").Value
+Cl_B_Size = Worksheets("Cash Flows").Range("Class_B_Size").Value
+Cl_C_Size = Worksheets("Cash Flows").Range("Class_C_Size").Value
+
+Cl_A_Bal = IPB * Cl_A_Size
+Cl_B_Bal = IPB * Cl_B_Size
+Cl_C_Bal = IPB * Cl_C_Size
+
+
+Cl_A_M = Worksheets("Cash Flows").Range("Class_A_M").Value
+Cl_B_M = Worksheets("Cash Flows").Range("Class_B_M").Value
+Cl_C_M = Worksheets("Cash Flows").Range("Class_C_M").Value
+
+Cl_A_MP = Cl_A_Bal * (Cl_A_Rate / 12) / (1 - (1 + Cl_A_Rate / 12) ^ (-Cl_A_M))
+Cl_B_MP = Cl_B_Bal * (Cl_B_Rate / 12) / (1 - (1 + Cl_B_Rate / 12) ^ (-Cl_B_M))
+
+
+'TAC schedule''''''''''''''''''''''''''''''''''''''''''''
+ReDim TACa(Term), TACb(Term)
+
+For k = 0 To Term - 1
+
+'Enable "use Bospoke TAC schedule"
+If Worksheets("Input Assumptions").Range("Bospoke_TAC").Value = "N" Then
+
+TACa(k) = WorksheetFunction.Max((12 * Cl_A_MP / Cl_A_Rate * (1 - (1 + Cl_A_Rate / 12) ^ (k - Cl_A_M))), 0)
+TACb(k) = WorksheetFunction.Max((12 * Cl_B_MP / Cl_B_Rate * (1 - (1 + Cl_B_Rate / 12) ^ (k - Cl_B_M))), 0)
+
+Else
+
+TACa(k) = Worksheets("Input Assumptions").Cells(4 + k, 33).Value
+TACb(k) = Worksheets("Input Assumptions").Cells(4 + k, 34).Value
+
+End If
+
+If One_Scenario Then
+Worksheets("Cash Flows").Cells(4 + k, 15).Value = TACa(k)
+Worksheets("Cash Flows").Cells(4 + k, 16).Value = TACb(k)
+End If
+
+Next k
+
+
+
+'Preliminaries''''''''''''''''''''''''''''''''''''''''''
+
+initial_maintenance_reserve = MRperShip(0)
+initial_interest_reserve = RAratio * V
+
+If Monitoring Then
+Worksheets("Output").Range("F5:I25").ClearContents
+Worksheets("Output").Range("A:A").ClearContents
+Worksheets("Output").Range("B:B").ClearContents
+Worksheets("Output").Range("C:C").ClearContents
+Worksheets("Output").Cells(1, 1).Value = "# of Monte Carlo"
+Worksheets("Output").Cells(1, 2).Value = "Return on Equity"
+Worksheets("Output").Cells(1, 3).Value = "Blend Return"
+End If
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+If One_Scenario Then
+Worksheets("Cash Flows").Cells(24, 2).Value = V
+Worksheets("Cash Flows").Cells(25, 2).Value = IPB
+Worksheets("Cash Flows").Cells(4, 17).Value = Cl_A_Bal
+Worksheets("Cash Flows").Cells(4, 18).Value = Cl_B_Bal
+Worksheets("Cash Flows").Cells(4, 19).Value = Cl_C_Bal
+Worksheets("Cash Flows").Cells(4, 22).Value = initial_maintenance_reserve
+Worksheets("Cash Flows").Cells(4, 21).Value = initial_interest_reserve
+Worksheets("Cash Flows").Cells(18, 2).Value = Cl_A_Bal
+Worksheets("Cash Flows").Cells(19, 2).Value = Cl_B_Bal
+Worksheets("Cash Flows").Cells(20, 2).Value = Cl_C_Bal
+End If
+
+
+
+
+
+''''''''''''''''''''''''''Non-Linear Loop (Banach's Fixed Point Theorem)''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Do
+Non_Linear_Index = Non_Linear_Index + 1
+Cl_A_Yield_Reduction = 0: Cl_A_Default_Rate = 0
+Cl_B_Yield_Reduction = 0: Cl_B_Default_Rate = 0
+WAL_A_Index = 0: WAL_B_Index = 0
+WAL_A = 0: WAL_B = 0
+
+
+''''''''''''''''''''''''''''' Linear Loop (Monte Carlo Simulation)'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+If One_Scenario Then Monte_Carlo_Runs = 1
+
+
+For h = 1 To Monte_Carlo_Runs
+
+'''''''''''''''''''''''''''''''One Monte Carlo''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+'Liability Array Redefine
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''
+ReDim CurrentCollection(Term), BegMR(Term), BegRA(Term)
+ReDim BalA(Term), BalB(Term), BalC(Term), Management_Fee(Term)
+ReDim s(Term), SP(Term), SS(Term), IA(Term), IAP(Term), IAS(Term)
+ReDim PA(Term), PAP(Term), PAS(Term), PB(Term), PBP(Term), PBS(Term), PC(Term), PCP(Term), PCS(Term)
+ReDim IB(Term), IBP(Term), IBS(Term), IC(Term), ICP(Term), ICS(Term)
+ReDim EndMR(Term), RaM(Term), RaR(Term), RS(Term), EndRA(Term), RrR(Term), CICP(Term)
+ReDim Fa(Term), Fb(Term), AAmort(Term), BAmort(Term), Month(Term)
+ReDim F0(Term), F1(Term), F2(Term), F3(Term), F4(Term), F5(Term)
+ReDim F6(Term), F7(Term), F8(Term), F9(Term), F10(Term), F11(Term), F12(Term)
+
+'Ship Array Redefine
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+ReDim IsSold(Ships), HasBeenScrap(Ships), ScrapIncome(Ships), Rate(Ships)
+ReDim Lease(Ships), Lease_Count(Ships), ReleaseInterval_Countdown(Ships)
+ReDim ExecutedOnce(Ships), TodayAge(Ships), Capacity(Ships), Opex(Ships)
+ReDim ScrapValue(Ships), Age(Ships), CharterLength(Ships), StartT(Ships)
+ReDim UninflatedRate(Ships), Revenue(Ships), Cost(Ships), sValue(Ships)
+ReDim Total_Revenue(Term), Total_Cost(Term), Total_Amort(Term), Total_ScrapIncome(Term), Total_Sales(Term), Return_Sum(Term)
+ReDim Total_Opex(Term), N_Out(Term), idle(Ships)
+ReDim Opex_InflationRate(Term), DSCR(Term), QMADSCR(Term)
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+'Worksheets("Asset").Range("D4:AG363").ClearContents
+'generate assets
+Call Inflation  'generate the array of inflation rates
+Call OperatingExp
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'Initialize Asset variables
+For i = 1 To Ships
+
+        Lease(i) = 1
+        ReleaseInterval_Countdown(i) = 0
+        ScrapIncome(i) = 0
+        SInflationFactor(i) = 1
+
+        IsSold(i) = False
+        ExecutedOnce(i) = True
+        HasBeenScrap(i) = False
+            
+        TodayAge(i) = TodayAge_initial(i) 'the age of the ship today
+        Capacity(i) = Capacity_initial(i) 'in TEU nominal
+        ScrapValue(i) = ScrapValue_initial(i) '$ in millions
+        sValue(i) = sValue_initial(i)
+
+Next i
+
+'calcuate F0 at time0
+F0(0) = 0 + MRperShip(0) + RAratio * V  'current collectoin =0 before the first month
+
+'Time 0 initialize
+Fa(0) = -Cl_A_Bal
+Fb(0) = -Cl_B_Bal
+BalA(0) = Cl_A_Bal
+BalB(0) = Cl_B_Bal
+BalC(0) = Cl_C_Bal
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'----loop----
+'non-linear upgrade for rates
+Cl_A_Rate = New_A
+Cl_B_Rate = New_B
+
+'Time Loop
+For ct = 1 To Term
+t = ct
+
+'Asset Part
+'Ship Iteration
+
+For i = 1 To Ships
+
+       
+
+        Age(i) = TodayAge(i) + (t \ 12) 'the age of each ship every month
+        
+        
+                Select Case Age(i)
+        
+                        Case Is <= UsefulLife
+                        
+                        ''''''''''''''''Sales''''''''''''''''''
+                            If IsSold(i) = False Then
+                                
+                                        ProbofSold = Rnd(Seed)
+                                        
+
+                                        '''''chosen for sale
+                                        If (t = 24 Or ((t - 24) Mod 48 = 0)) And ProbofSold <= Sale_prob Then
+                                                   
+                                                   Call Sales
+                                                   
+                                                   Lease(i) = -1
+                                                   idle(i) = Lease(i)
+                                                   IsSold(i) = True
+                                                   HasBeenScrap(i) = True
+                                                
+                                                   
+                                        '''''''''not chosen for sale
+                                        Else
+                                                   idle(i) = Lease(i)
+                                                   If ReleaseInterval_Countdown(i) = 0 Then
+                               
+                                                   
+                                                   ''''''''''''''''''''''''''''''Current Lease'''''''''''''''''''''''''''''''''
+                                                           If Lease(i) = 1 Then
+                        
+                                                                       ExpirationDate = ExpirationDate_initial(i)
+                                                                       CharterLength(i) = CharterLength_initial(i)  'Length of Lease (months)
+                                                                       
+                                                                       Rate(i) = Rate_initial(i) '$/Day
+                                                                       Opex(i) = Opex_initial(i) '$/Day
+
+                                                                       
+                                                                       If CharterLength(i) - t > 0 Then
+                                                                               'calculate future cash flows in a month
+                                                                               Revenue(i) = 30 * Rate(i) 'cash inflow in a month
+                                                         
+                                                                               Total_Revenue(t) = Total_Revenue(t) + Revenue(i)
+                                                                               Total_Amort(t) = Total_Amort(t) + Amort(i)
+                                                                               Total_ScrapIncome(t) = Total_ScrapIncome(t) + 0
+                                                                               Total_Sales(t) = Total_Sales(t) + 0
+                                                                               Total_Opex(t) = Total_Opex(t) + 30 * Opex(i)
+                                                                        
+                                                                               
+                                                                       ElseIf CharterLength(i) - t = 0 Then
+
+                                                                       
+                                                                               'calculate future cash flows in the last month of the lease
+                                                                               Revenue(i) = 30 * Rate(i)
+
+                                                                               
+                                                                               Total_Revenue(t) = Total_Revenue(t) + Revenue(i)
+                                                                               Total_Amort(t) = Total_Amort(t) + Amort(i)
+                                                                               Total_ScrapIncome(t) = Total_ScrapIncome(t) + 0
+                                                                               Total_Sales(t) = Total_Sales(t) + 0
+                                                                               Total_Opex(t) = Total_Opex(t) + 30 * Opex(i)
+                                                                               
+                                                                               Lease(i) = 0
+                                                                               Lease_Count(i) = 1
+                                                                               
+                                                                               'releasing intervals
+                                                                            
+                                                                               ReleaseRound = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Idle_alpha, Idle_beta, Idle_Lower, Idle_Upper)
+            
+                                                                               If ReleaseRound > Idle_Mean Then
+                                                                               ReleaseInterval = WorksheetFunction.RoundUp(ReleaseRound, 0)
+                                                                               Else: ReleaseInterval = WorksheetFunction.RoundDown(ReleaseRound, 0)
+                                                                               End If
+                                                                                
+                                                                               ReleaseInterval_Countdown(i) = ReleaseInterval
+                                                                                                                                            
+                                                                       End If
+                                                               
+                                                       ''''''''''''''''''''''''''''''''''future leases''''''''''''''''''''''''''''''''''
+                                                       ElseIf Lease(i) > 1 Then
+
+                                                       
+                                                               If ExecutedOnce(i) = True Then
+                                                               
+                                                                          StartDate = DateAdd("m", t, Date)
+                                                                          StartT(i) = t
+                        
+                                                                          'draw new lease term and uninflated lease rate
+                                                                          Call NewLease
+                                                                          
+                                                                          'get inflation
+                                                                          
+                                                                          y = t \ 12
+                                                                          M = t - y * 12
+                                                                          If y > 0 Then
+                                                                                InflationRate = InflationAnnFactor(y) * (1 + (M / 12) * InflationMonFactor(y + 1))
+                                                                          Else
+                                                                                InflationRate = 1 + (M / 12) * InflationMonFactor(y + 1)
+                                                                          End If
+                                                                          
+                                                                          'calculate inflated future lease rate
+                                                                          Rate(i) = Rate_initial(i) * InflationRate
+
+                                                               
+                                                                          'operating expenses (in ratio)
+                                                                          
+                                                                          ExecutedOnce(i) = False
+
+                                                                          Call RevenueFL
+
+                                                               Else 'ExecutedOnce=False
+                                                                          Call RevenueFL
+                                                            
+
+                                                                End If
+                                                                
+                                                        End If
+                                   
+                                                   Else 'ReleaseInterval_Countdown(i) NOT =0
+
+                                                           Revenue(i) = 0
+                                                           'Cost(i) = 0
+                                                           
+                                                           Total_Revenue(t) = Total_Revenue(t) + Revenue(i)
+                                                           Total_Amort(t) = Total_Amort(t) + Amort(i)
+                                                           Total_ScrapIncome(t) = Total_ScrapIncome(t) + 0
+                                                           Total_Sales(t) = Total_Sales(t) + 0
+                                                           Total_Opex(t) = Total_Opex(t) + 30 * Opex(i)
+                                                                               
+                                                           ReleaseInterval_Countdown(i) = ReleaseInterval_Countdown(i) - 1
+                                                               
+                                                           If ReleaseInterval_Countdown(i) = 0 Then
+                                                               Lease(i) = Lease_Count(i) + 1
+                                                           Else
+                                                               Lease(i) = 0
+                                                           End If
+                                                           
+                                                           
+                                                           ExecutedOnce(i) = True
+                                                           
+                                                   End If
+                                              
+                                              
+                                        End If
+                                    
+                                    
+                            ElseIf IsSold(i) = True Then
+                                        idle(i) = Lease(i)
+                                        
+                                        Total_Revenue(t) = Total_Revenue(t)
+                                        Total_Amort(t) = Total_Amort(t)
+                                        Total_ScrapIncome(t) = Total_ScrapIncome(t)
+                                        Total_Sales(t) = Total_Sales(t)
+                                        Total_Opex(t) = Total_Opex(t)
+                                        
+                                        HasBeenScrap(i) = True
+                                        IsSold(i) = True
+                                    
+                                        idle(i) = -1
+                                        
+                            End If
+                                
+                       '''''''''''''''''''''''''''Ship age above 30'''''''''''''''''''''''
+                        Case Else
+                    
+                                If HasBeenScrap(i) = False Then
+                                
+                                    'Call ScrapInflation
+                                    
+                                    ScrapValue(i) = sValue(i) * (Scrap_Adj / 460)
+                                    ScrapIncome(i) = ScrapValue(i) * 1000000 '$ in dollars
+                                    Total_ScrapIncome(t) = Total_ScrapIncome(t) + ScrapIncome(i)
+                                    HasBeenScrap(i) = True
+                                    idle(i) = -1
+                                    
+                                Else
+                                     Total_ScrapIncome(t) = Total_ScrapIncome(t)
+                                     idle(i) = -1
+                                End If
+                                
+                        
+                        End Select
+
+Next i
+
+
+If t > 1 Then
+Total_Opex(t) = Total_Opex(t) * Opex_InflationRate(t)
+End If
+
+Scrap_Sum = Scrap_Sum - Total_ScrapIncome(t)
+
+Month(t) = t
+
+'Calculate Current Collection each month
+CurrentCollection(t) = Total_Revenue(t) + Total_ScrapIncome(t) + Total_Sales(t) - Total_Opex(t)
+
+
+'calculate beginning maintenance reserve and interest reserve accounts after time 0
+If t = 1 Then
+    BegMR(t) = initial_maintenance_reserve * (1 + IR / 12)
+    BegRA(t) = initial_interest_reserve * (1 + IR / 12)
+Else
+    BegMR(t) = EndMR(t - 1) * (1 + IR / 12)
+    BegRA(t) = EndRA(t - 1) * (1 + IR / 12)
+End If
+
+F0(t) = CurrentCollection(t) + BegMR(t) + BegRA(t)
+
+
+
+'''''''''''''''''''''''''''''Part1:Maintaince Fee''''''''''''''''''''''''''''''
+'number of ships out of lease
+Dim itr, count As Integer
+count = 0
+For itr = 1 To Ships
+If IsSold(itr) Or HasBeenScrap(itr) Then count = count + 1
+Next itr
+
+N = Ships - count
+
+'Service fee due
+If t = 1 Then
+    s(t) = Mgmt(t)
+Else
+    s(t) = Mgmt(t) + SS(t - 1)
+End If
+    
+SP(t) = WorksheetFunction.Min(F0(t), s(t)) 'Service fee paid
+SS(t) = s(t) - SP(t) 'Service fee shorfall
+F1(t) = F0(t) - SP(t)
+
+'''''''''Draw Maintenance Fees
+RdM = WorksheetFunction.Max(0, (BegMR(t) - F1(t))) 'Maintenance reserve draw
+F2(t) = WorksheetFunction.Max(0, (F1(t) - BegMR(t)))
+
+
+'Management Fee payment
+Management_Fee(t) = (MFee_Ratio / 12) * (BalA(t - 1) + BalB(t - 1) + BalC(t - 1))
+F2(t) = WorksheetFunction.Max(0, F2(t) - Management_Fee(t))
+
+
+'''''''''''''''''''''''''''''Part2:Class A Interest''''''''''''''''''''''''''''''
+'Class A interest due
+If t = 1 Then
+    IA(t) = (Cl_A_Rate / 12) * Cl_A_Bal
+Else
+    IA(t) = (Cl_A_Rate / 12) * BalA(t - 1) + IAS(t - 1) * (1 + Cl_A_Rate / 12)
+End If
+
+IAP(t) = WorksheetFunction.Min(F2(t), IA(t)) 'class A interest paid
+IAS(t) = IA(t) - IAP(t) 'Class A interest shortfall
+F3(t) = F2(t) - IAP(t)
+
+
+'''''''''''''''''''''''''''''Part3:Class B Interest''''''''''''''''''''''''''''''
+'Class B interest due
+If t = 1 Then
+    IB(t) = (Cl_B_Rate / 12) * Cl_B_Bal
+Else
+    IB(t) = (Cl_B_Rate / 12) * BalB(t - 1) + IBS(t - 1) * (1 + Cl_B_Rate / 12)
+End If
+
+IBP(t) = WorksheetFunction.Min(F3(t), IB(t)) 'class B interest paid
+IBS(t) = IB(t) - IBP(t) 'Class B interest shortfall
+F4(t) = F3(t) - IBP(t)
+
+
+'''''''''Draw Interest Reserve
+RdR = WorksheetFunction.Max(0, (BegRA(t) - F4(t))) 'Interest reserve draw
+F5(t) = WorksheetFunction.Max(0, (F4(t) - BegRA(t)))
+
+
+'''''''''''''''''''''''''''''Part4:Top Up Maintenance Reserve Account''''''''''''''''''''''''''''''
+RrM = MRperShip(t)
+RaM(t) = WorksheetFunction.Min(F5(t), (RrM - BegMR(t) + RdM))
+
+EndMR(t) = BegMR(t) - RdM + RaM(t)
+F6(t) = F5(t) - RaM(t)
+
+
+
+'''''''''''''''''''''''''''''Part5:Class C Interest''''''''''''''''''''''''''''''
+'Class C interest due
+If t = 1 Then
+    IC(t) = (Cl_C_Rate / 12) * Cl_C_Bal
+Else
+    IC(t) = (Cl_C_Rate / 12) * BalC(t - 1) + ICS(t - 1) * (1 + Cl_C_Rate / 12)
+End If
+
+ICP(t) = WorksheetFunction.Min(F6(t), IC(t)) 'class C interest paid
+ICS(t) = IC(t) - ICP(t) 'Class C interest shortfall
+F7(t) = F6(t) - ICP(t)
+
+
+
+'''''''''''''''''''''''''''''Part6:Top Up Interest Reserve Account''''''''''''''''''''''''''''''
+If t = 1 Then
+    RrR(t) = (WAImonth / 12) * (Cl_A_Bal * Cl_A_Rate + Cl_B_Bal * Cl_B_Rate)
+Else
+    RrR(t) = (WAImonth / 12) * (BalA(t - 1) * Cl_A_Rate + BalB(t - 1) * Cl_B_Rate)
+End If
+
+RaR(t) = WorksheetFunction.Min(F7(t), (RrR(t) - BegRA(t) + RdR))
+EndRA(t) = BegRA(t) - RdR + RaR(t)
+F8(t) = F7(t) - RaR(t)
+
+
+
+'''''''''''''''''''''''''''''Part7:Class A Principal''''''''''''''''''''''''''''''
+If t = 1 Then
+    PA(t) = Cl_A_Bal - TACa(t)
+Else
+    PA(t) = BalA(t - 1) - TACa(t)
+End If
+
+PAP(t) = WorksheetFunction.Min(F8(t), PA(t))
+PAS(t) = PA(t) - PAP(t)
+F9(t) = F8(t) - PAP(t)
+
+If t = 1 Then
+    BalA(t) = Cl_A_Bal - PAP(t)
+    AAmort(t) = Cl_A_Bal - BalA(t)
+Else
+    BalA(t) = BalA(t - 1) - PAP(t)
+    AAmort(t) = BalA(t - 1) - BalA(t)
+End If
+
+
+'''''''''''''''''''''''''''''Part8:Class B Principal''''''''''''''''''''''''''''''
+If t = 1 Then
+    PB(t) = Cl_B_Bal - TACb(t)
+Else
+    PB(t) = BalB(t - 1) - TACb(t)
+End If
+
+PBP(t) = WorksheetFunction.Min(F9(t), PB(t))
+PBS(t) = PB(t) - PBP(t)
+F10(t) = F9(t) - PBP(t)
+
+
+If t = 1 Then
+    BalB(t) = Cl_B_Bal - PBP(t)
+    BAmort(t) = Cl_B_Bal - BalB(t)
+Else
+    BalB(t) = BalB(t - 1) - PBP(t)
+    BAmort(t) = BalB(t - 1) - BalB(t)
+End If
+
+
+''''''''''''''''''''''''''''Potential DSCR Trap'''''''''''''''''''''''''
+'If WorksheetFunction.Max(BalA(t - 1), BalB(t - 1), TACa(t - 1), TACb(t - 1)) Then
+'DSCR(t) = CurrentCollection(t) / ((Cl_A_Rate / 12) * BalA(t - 1) + (Cl_B_Rate / 12) * BalB(t - 1) + (TACa(t - 1) - TACa(t)) + (TACb(t - 1) - TACb(t)))
+'Else
+'DSCR(t) = 0
+'End If
+
+'If t < 3 Then
+'QMADSCR(t) = 1.5
+'Else
+'QMADSCR(t) = (DSCR(t - 2) + DSCR(t - 1) + DSCR(t)) / 3
+'End If
+
+
+
+'''''''''''''''''''''''''''''Part9:Class C ''''''''''''''''''''''''''''''
+If t = 1 Then
+    PC(t) = Cl_C_Bal
+Else
+    PC(t) = BalC(t - 1)
+End If
+
+    PCP(t) = WorksheetFunction.Min(F10(t), PC(t))
+    PCS(t) = PC(t) - PCP(t)
+    F11(t) = F10(t) - PCP(t)
+
+If t = 1 Then
+    BalC(t) = Cl_C_Bal - PCP(t) 'Calculate class principals after payment
+Else
+    BalC(t) = BalC(t - 1) - PCP(t)
+End If
+
+
+'''''''''''''''''''''''''''''Part10:Residual''''''''''''''''''''''''''''''
+RS(t) = F11(t) * (1 - Incentive_fee)
+
+If t = 1 Then
+    CICP(t) = RS(t)
+Else
+    CICP(t) = CICP(t - 1) + RS(t)
+End If
+
+F12(t) = F11(t) - RS(t)
+
+'calculate total payments
+Fa(t) = IAP(t) + PAP(t)
+Fb(t) = IBP(t) + PBP(t)
+
+
+'Blend return for a client holding all three classes
+Return_Sum(t) = IAP(t) + PAP(t) + IBP(t) + PBP(t) + ICP(t) + PCP(t) + RS(t)
+
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'one scenario cash flow output
+
+If One_Scenario Then
+
+count = 0
+For itr = 1 To Ships
+If IsSold(itr) Or HasBeenScrap(itr) Then count = count + 1
+Next itr
+
+Worksheets("Cash Flows").Cells(4 + t, 8).Value = count
+
+count = 0
+For itr = 1 To Ships
+If idle(itr) = 0 Then count = count + 1
+Next itr
+
+Worksheets("Cash Flows").Cells(4 + t, 9).Value = count
+
+Worksheets("Cash Flows").Cells(4 + t, 10).Value = Total_ScrapIncome(t) + Total_Sales(t)
+Worksheets("Cash Flows").Cells(4 + t, 11).Value = Total_Revenue(t)
+Worksheets("Cash Flows").Cells(4 + t, 12).Value = Total_Opex(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 14).Value = CurrentCollection(t)
+Worksheets("Cash Flows").Cells(4 + t, 17).Value = BalA(t)
+Worksheets("Cash Flows").Cells(4 + t, 18).Value = BalB(t)
+Worksheets("Cash Flows").Cells(4 + t, 19).Value = BalC(t)
+Worksheets("Cash Flows").Cells(4 + t, 20).Value = Scrap_Sum
+Worksheets("Cash Flows").Cells(4 + t, 21).Value = BegRA(t)
+Worksheets("Cash Flows").Cells(4 + t, 22).Value = BegMR(t)
+Worksheets("Cash Flows").Cells(4 + t, 23).Value = F0(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 25).Value = s(t)
+Worksheets("Cash Flows").Cells(4 + t, 26).Value = SP(t)
+Worksheets("Cash Flows").Cells(4 + t, 27).Value = SS(t)
+Worksheets("Cash Flows").Cells(4 + t, 28).Value = F1(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 30).Value = Mgmt(t)
+Worksheets("Cash Flows").Cells(4 + t, 31).Value = Management_Fee(t)
+Worksheets("Cash Flows").Cells(4 + t, 32).Value = F2(t)
+Worksheets("Cash Flows").Cells(4 + t, 34).Value = IA(t)
+Worksheets("Cash Flows").Cells(4 + t, 35).Value = IAP(t)
+Worksheets("Cash Flows").Cells(4 + t, 36).Value = IAS(t)
+Worksheets("Cash Flows").Cells(4 + t, 37).Value = F3(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 39).Value = IB(t)
+Worksheets("Cash Flows").Cells(4 + t, 40).Value = IBP(t)
+Worksheets("Cash Flows").Cells(4 + t, 41).Value = IBS(t)
+Worksheets("Cash Flows").Cells(4 + t, 42).Value = F4(t)
+Worksheets("Cash Flows").Cells(4 + t, 44).Value = RdR
+Worksheets("Cash Flows").Cells(4 + t, 45).Value = F5(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 47).Value = RrM
+Worksheets("Cash Flows").Cells(4 + t, 48).Value = RaM(t)
+Worksheets("Cash Flows").Cells(4 + t, 49).Value = EndMR(t)
+Worksheets("Cash Flows").Cells(4 + t, 50).Value = F6(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 52).Value = IC(t)
+Worksheets("Cash Flows").Cells(4 + t, 53).Value = ICP(t)
+Worksheets("Cash Flows").Cells(4 + t, 54).Value = ICS(t)
+Worksheets("Cash Flows").Cells(4 + t, 55).Value = F7(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 57).Value = RrR(t)
+Worksheets("Cash Flows").Cells(4 + t, 58).Value = RaR(t)
+Worksheets("Cash Flows").Cells(4 + t, 59).Value = EndRA(t)
+Worksheets("Cash Flows").Cells(4 + t, 60).Value = F8(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 62).Value = PA(t)
+Worksheets("Cash Flows").Cells(4 + t, 63).Value = PAP(t)
+Worksheets("Cash Flows").Cells(4 + t, 64).Value = PAS(t)
+Worksheets("Cash Flows").Cells(4 + t, 65).Value = F9(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 67).Value = PB(t)
+Worksheets("Cash Flows").Cells(4 + t, 68).Value = PBP(t)
+Worksheets("Cash Flows").Cells(4 + t, 69).Value = PBS(t)
+Worksheets("Cash Flows").Cells(4 + t, 70).Value = F10(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 72).Value = PC(t)
+Worksheets("Cash Flows").Cells(4 + t, 73).Value = PCP(t)
+Worksheets("Cash Flows").Cells(4 + t, 74).Value = PCS(t)
+Worksheets("Cash Flows").Cells(4 + t, 75).Value = F11(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 77).Value = RS(t)
+Worksheets("Cash Flows").Cells(4 + t, 78).Value = CICP(t)
+Worksheets("Cash Flows").Cells(4 + t, 79).Value = F12(t)
+
+Worksheets("Cash Flows").Cells(4 + t, 81).Value = Fa(t)
+Worksheets("Cash Flows").Cells(4 + t, 82).Value = Fb(t)
+Worksheets("Cash Flows").Cells(4 + t, 84).Value = AAmort(t)
+Worksheets("Cash Flows").Cells(4 + t, 85).Value = BAmort(t)
+
+
+Worksheets("Cash Flows").Cells(4 + t, 87).Value = F11(t) * Incentive_fee
+Worksheets("Cash Flows").Cells(4 + t, 88).Value = Return_Sum(t)
+
+End If
+
+
+''''''''''''''''''''''''''''''''''''END OF WATERFALL'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Next ct
+
+
+'calculate IRR for class a and b
+Fa(Term) = Fa(Term) + 0.0001
+IRRa = WorksheetFunction.IRR(Fa(), -0.1)
+Fb(Term) = Fb(Term) + 0.0001
+IRRb = WorksheetFunction.IRR(Fb(), -0.1)
+
+'calculate Delta irr
+DIRRa = WorksheetFunction.Max(0, Cl_A_Rate - WorksheetFunction.Max(-1, 12 * IRRa))
+DIRRb = WorksheetFunction.Max(0, Cl_B_Rate - WorksheetFunction.Max(-1, 12 * IRRb))
+
+'calculate average life
+If BalA(UBound(BalA)) < 1 Then
+    ALa = WorksheetFunction.SumProduct(Month(), AAmort()) / Cl_A_Bal
+Else
+    ALa = "Infinity"
+End If
+
+If BalB(UBound(BalB)) < 1 Then
+    ALb = WorksheetFunction.SumProduct(Month(), BAmort()) / Cl_B_Bal
+Else
+    ALb = "Infinity"
+End If
+
+
+'compute IRR for Class C
+RS(0) = -Cl_C_Bal
+RS(Term) = RS(Term) + 1E-05
+IRR = 12 * WorksheetFunction.IRR(RS(), -0.1)
+
+Return_Sum(0) = -(Cl_A_Bal + Cl_B_Bal + Cl_C_Bal)
+Return_Sum(Term) = Return_Sum(Term) + 0.0001
+Blend_IRR = 12 * WorksheetFunction.IRR(Return_Sum(), -0.5)
+
+''''''''''''''''''''''''''''''''''''''''''''''End of One Monte Carlo''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''Non-Linear Updating''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Cl_A_Yield_Reduction = Cl_A_Yield_Reduction + 10000 * DIRRa
+Cl_B_Yield_Reduction = Cl_B_Yield_Reduction + 10000 * DIRRb
+Cl_A_Default_Rate = Cl_A_Default_Rate - 1 * (Worksheets("Cash Flows").Range("Class_A_SP_Default_Rate").Value = True)
+Cl_B_Default_Rate = Cl_B_Default_Rate - 1 * (Worksheets("Cash Flows").Range("Class_B_SP_Default_Rate").Value = True)
+'
+
+' Weighted Average Life Calculations (Class A and Class B)
+
+If ALa <> "Infinity" Then
+WAL_A_Index = WAL_A_Index + 1
+WAL_A = WAL_A + ALa
+End If
+
+If ALb <> "Infinity" Then
+WAL_B_Index = WAL_B_Index + 1
+WAL_B = WAL_B + ALb
+End If
+
+'
+' See Output if necessary
+'
+' Monitor convergence
+If Monitoring Then
+Worksheets("Output").Cells(h + 1, 1).Value = h
+Worksheets("Output").Cells(h + 1, 2).Value = IRR
+Worksheets("Output").Cells(h + 1, 3).Value = Blend_IRR
+End If
+
+
+'Inform loop
+If h Mod 100 = 0 Then
+Application.ScreenUpdating = True
+Worksheets("Cash Flows").Cells(7, 5).Value = h
+Application.ScreenUpdating = False
+End If
+
+
+Next h
+
+
+' Compute the tranche-wise yield reductions
+
+Cl_A_Yield_Reduction = Cl_A_Yield_Reduction / Monte_Carlo_Runs
+Cl_B_Yield_Reduction = Cl_B_Yield_Reduction / Monte_Carlo_Runs
+Cl_A_Default_Rate = Cl_A_Default_Rate / Monte_Carlo_Runs
+Cl_B_Default_Rate = Cl_B_Default_Rate / Monte_Carlo_Runs
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+If One_Scenario Or Run_Linear Then
+Non_Linear_Index = 999
+
+Moodys_Cl_A_Rating = Application.VLookup(Cl_A_Yield_Reduction, Rating_Scale_Array_M, 2, True)
+Moodys_Cl_B_Rating = Application.VLookup(Cl_B_Yield_Reduction, Rating_Scale_Array_M, 2, True)
+
+Worksheets("Cash Flows").Cells(41, 2).Value = Moodys_Cl_A_Rating
+Worksheets("Cash Flows").Cells(42, 2).Value = Moodys_Cl_B_Rating
+Worksheets("Cash Flows").Cells(45, 2).Value = Cl_A_Yield_Reduction
+Worksheets("Cash Flows").Cells(46, 2).Value = Cl_B_Yield_Reduction
+
+Worksheets("Cash Flows").Cells(47, 2).Value = Cl_A_Default_Rate
+Worksheets("Cash Flows").Cells(48, 2).Value = Cl_B_Default_Rate
+Worksheets("Cash Flows").Cells(52, 2).Value = ALa
+Worksheets("Cash Flows").Cells(53, 2).Value = ALb
+
+Else
+' Non-Linear Rate Update
+' Compute weighted average lives
+If WAL_A_Index = 0 Then WAL_A_Index = 1
+If WAL_B_Index = 0 Then WAL_B_Index = 1
+
+WAL_A = WAL_A / WAL_A_Index
+WAL_B = WAL_B / WAL_B_Index
+
+Yield_A = Yield_Curve(WAL_A, Cl_A_Yield_Reduction)
+Yield_B = Yield_Curve(WAL_B, Cl_B_Yield_Reduction)
+Delta_A = Yield_A - Cl_A_Rate
+Delta_B = Yield_B - Cl_B_Rate
+New_Class_A_Rate = Cl_A_Rate + Class_A_Relaxation_Factor * Delta_A
+New_Class_B_Rate = Cl_B_Rate + Class_B_Relaxation_Factor * Delta_B
+
+
+Convergence_Criterion = (Cl_A_Size / (Cl_A_Size + Cl_B_Size)) * Abs((New_Class_A_Rate - Cl_A_Rate) / Cl_A_Rate) + _
+(1 - (Cl_A_Size / (Cl_A_Size + Cl_B_Size))) * Abs((New_Class_B_Rate - Cl_B_Rate) / Cl_B_Rate)
+
+
+Cl_A_Rate = New_Class_A_Rate
+Cl_B_Rate = New_Class_B_Rate
+'
+' Substitute the new updates into the spreadsheet for the next iteration
+
+New_A = Cl_A_Rate
+New_B = Cl_B_Rate
+
+Worksheets("Cash Flows").Range("Convergence_Status").Value = Non_Linear_Index
+
+Worksheets("Output").Cells(4 + Non_Linear_Index, 5).Value = Non_Linear_Index
+Worksheets("Output").Cells(4 + Non_Linear_Index, 6).Value = New_A
+Worksheets("Output").Cells(4 + Non_Linear_Index, 8).Value = New_B
+
+If WAL_A = 0 Then
+Worksheets("Output").Cells(4 + Non_Linear_Index, 7).Value = "Infinity"
+Worksheets("Cash Flows").Cells(52, 2).Value = "Infinity"
+Else:
+Worksheets("Output").Cells(4 + Non_Linear_Index, 7).Value = WAL_A
+End If
+
+If WAL_B = 0 Then
+Worksheets("Output").Cells(4 + Non_Linear_Index, 9).Value = "Infinity"
+Worksheets("Cash Flows").Cells(53, 2).Value = "Infinity"
+Else:
+Worksheets("Output").Cells(4 + Non_Linear_Index, 9).Value = WAL_B
+End If
+
+Worksheets("Cash Flows").Cells(26, 2).Value = New_A
+Worksheets("Cash Flows").Cells(27, 2).Value = New_B
+
+
+End If
+
+
+' Continue Until the non-Linear Convergence Criterion is Satisfied
+Loop Until Application.Or(Convergence_Criterion < Epsilon, Non_Linear_Index > Non_Linear_Limit)
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''End of Non_Linear Loop''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+'Write Out Results
+'
+If Non_Linear_Index > Non_Linear_Limit Then Worksheets("Cash Flows").Range("Convergence_Status").Cells(2, 1).Value = "Diverged" Else _
+Worksheets("Cash Flows").Range("Convergence_Status").Cells(2, 1).Value = "Converged"
+
+
+Moodys_Cl_A_Rating = Application.VLookup(Cl_A_Yield_Reduction, Rating_Scale_Array_M, 2, True)
+Moodys_Cl_B_Rating = Application.VLookup(Cl_B_Yield_Reduction, Rating_Scale_Array_M, 2, True)
+
+
+'Moody's ratings
+'
+Worksheets("Cash Flows").Cells(41, 2).Value = Moodys_Cl_A_Rating
+Worksheets("Cash Flows").Cells(42, 2).Value = Moodys_Cl_B_Rating
+Worksheets("Cash Flows").Cells(45, 2).Value = Cl_A_Yield_Reduction
+Worksheets("Cash Flows").Cells(46, 2).Value = Cl_B_Yield_Reduction
+
+Worksheets("Cash Flows").Cells(47, 2).Value = Cl_A_Default_Rate
+Worksheets("Cash Flows").Cells(48, 2).Value = Cl_B_Default_Rate
+
+
+
+Worksheets("Cash Flows").Cells(7, 5).Value = h - 1
+End_Time = Now()
+Elapsed_Time = (End_Time - Start_Time)
+Worksheets("Cash Flows").Cells(9, 5).Value = 86400 * Elapsed_Time
+
+
+Application.Calculation = xlCalculationAutomatic
+Application.DisplayStatusBar = True
+Application.ScreenUpdating = True
+Application.EnableEvents = True
+
+End Sub
+
+
+Sub Sales()
+
+Public cf As Double
+Public dcf As Double
+Dim ratio As Double
+Dim e, w As Integer
+
+
+Public DepValue As Double
+Public SalesPrice As Double
+Public InfSalesPrice As Double
+Public FinalSalesPrice As Double
+
+
+        'calculate discounted value
+        
+        dcf = 0
+        FinalSalesPrice = 0
+       
+        If Lease(i) = 1 Then
+        
+               cf = 30 * (Rate(i) - Opex(i))
+               For e = 1 To (UsefulLife - Age(i)) * 12
+                     dcf = dcf + cf / ((1 + WAI) ^ e)
+               Next e
+            
+        ElseIf Lease(i) = 0 And Lease_Count(i) = 0 Then
+         
+                cf = 30 * (Rate(i) - Opex(i))
+                For e = 1 To (UsefulLife - Age(i)) * 12
+                     dcf = dcf + cf / ((1 + WAI) ^ e)
+                Next e
+        
+        ElseIf Lease(i) > 1 Then
+        
+                cf = 30 * (Rate(i) - Opex(i))
+                For e = 1 To (UsefulLife - Age(i)) * 12
+                    dcf = dcf + cf / ((1 + WAI) ^ e)
+                Next e
+        
+        ElseIf Lease(i) = 0 And Lease_Count(i) > 1 Then
+        
+                cf = 30 * (Rate(i) - Opex(i))
+                For e = 1 To (UsefulLife - Age(i)) * 12
+                    dcf = dcf + cf / ((1 + WAI) ^ e)
+                Next e
+
+        End If
+            
+        Call ScrapInflation
+        
+        ScrapValue(i) = sValue(i) * (Scrap_Adj / 460)
+        
+        ''''''value 1 : scrap value
+        ScrapIncome(i) = ScrapValue(i) * 1000000 '$ in dollars
+        Scrap_Sum = Scrap_Sum - ScrapIncome(i)
+        
+        ratio = dcf / ScrapIncome(i)
+        '''''value 2 : depreciated value
+        DepValue = Amort(i) * ((UsefulLife - TodayAge(i)) * 12 - t)
+        
+
+        If Age(i) >= 0 And Age(i) <= 8 Then
+            SalesPrice = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Sales1_alpha, Sales1_beta, Sales1_Lower, Sales1_Upper)
+        ElseIf Age(i) <= 13 Then
+            SalesPrice = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Sales2_alpha, Sales2_beta, Sales2_Lower, Sales2_Upper)
+        ElseIf Age(i) <= 19 Then
+            SalesPrice = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Sales3_alpha, Sales3_beta, Sales3_Lower, Sales3_Upper)
+        Else
+            SalesPrice = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Sales4_alpha, Sales4_beta, Sales4_Lower, Sales4_Upper)
+        End If
+        '''''value 3 : sales value
+        InfSalesPrice = SalesPrice * Capacity(i) * SInflationFactor(i)
+        
+        ''''''Final interim sale price
+        FinalSalesPrice = WorksheetFunction.Max(DepValue * (1 + ratio), ScrapIncome(i), InfSalesPrice)
+        
+        
+        'outout resaults
+        Total_Sales(t) = Total_Sales(t) + FinalSalesPrice
+        
+        
+        Select Case t
+        Case Is < Survey_Matrix.Cells(i, 2)
+            Mgmt(Survey_Matrix.Cells(i, 2)) = Mgmt(Survey_Matrix.Cells(i, 2)) - Survey_Matrix.Cells(i, 3)
+            Mgmt(Survey_Matrix.Cells(i, 4)) = Mgmt(Survey_Matrix.Cells(i, 4)) - Survey_Matrix.Cells(i, 5)
+            Mgmt(Survey_Matrix.Cells(i, 6)) = Mgmt(Survey_Matrix.Cells(i, 6)) - Survey_Matrix.Cells(i, 7)
+            
+        Case Is < Survey_Matrix.Cells(i, 4)
+
+            Mgmt(Survey_Matrix.Cells(i, 4)) = Mgmt(Survey_Matrix.Cells(i, 4)) - Survey_Matrix.Cells(i, 5)
+            Mgmt(Survey_Matrix.Cells(i, 6)) = Mgmt(Survey_Matrix.Cells(i, 6)) - Survey_Matrix.Cells(i, 7)
+        
+        Case Is < Survey_Matrix.Cells(i, 6)
+            Mgmt(Survey_Matrix.Cells(i, 6)) = Mgmt(Survey_Matrix.Cells(i, 6)) - Survey_Matrix.Cells(i, 7)
+
+        End Select
+        
+        For w = 0 To Term - Periods - 1
+
+            For k = (w + 1) To (w + Periods)
+            MRperShip(w) = MRperShip(w) + Mgmt(k)
+            Next k
+    
+            MRperShip(w) = MRperShip(w) * Maintaince_Adj
+        Next w
+
+End Sub
+
+Sub NewLease()
+Dim res As Integer
+Dim rd As Integer
+
+ 
+                                        If Age(i) >= 20 Then
+                                            
+                                                res = WorksheetFunction.VLookup(Capacity(i), myTableArray201, 2, True) \ 100
+                                                
+                                                If res < 4 Then
+                                                rd = Int((100 * (res + 1) - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                Else
+                                                rd = Int((467 - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                End If
+                                                
+                                                CharterLength(i) = WorksheetFunction.VLookup(rd, myTableArray202, 7, True)
+                                                CharterLength(i) = Int(CharterLength(i) * Lease_Term_Adj)
+                                                 
+                                        ElseIf Age(i) >= 14 Then
+                                        
+                                                res = WorksheetFunction.VLookup(Capacity(i), myTableArray141, 2, True) \ 100
+                                                
+                                                If res < 9 Then
+                                                rd = Int((100 * (res + 1) - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                Else
+                                                rd = Int((931 - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                End If
+
+                                                CharterLength(i) = WorksheetFunction.VLookup(rd, myTableArray142, 7, True)
+                                                CharterLength(i) = Int(CharterLength(i) * Lease_Term_Adj)
+                                               
+                                               
+                                        ElseIf Age(i) >= 9 Then
+                                        
+                                                res = WorksheetFunction.VLookup(Capacity(i), myTableArray091, 2, True) \ 100
+                                                
+                                                If res < 19 Then
+                                                rd = Int((100 * (res + 1) - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                Else
+                                                rd = Int((1933 - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                End If
+                                                
+                                                CharterLength(i) = WorksheetFunction.VLookup(rd, myTableArray092, 7, True)
+                                                CharterLength(i) = Int(CharterLength(i) * Lease_Term_Adj)
+                                              
+                                              
+                                        Else
+                                        
+                                                res = WorksheetFunction.VLookup(Capacity(i), myTableArray01, 2, True) \ 100
+                                                
+                                                If res < 6 Then
+                                                rd = Int((100 * (res + 1) - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                Else
+                                                rd = Int((688 - 100 * res + 1) * Rnd(Seed) + 100 * res)
+                                                End If
+
+                                                CharterLength(i) = WorksheetFunction.VLookup(rd, myTableArray02, 7, True)
+                                                CharterLength(i) = Int(CharterLength(i) * Lease_Term_Adj)
+                                                
+                                        End If
+ End Sub
+                                      
+
+Sub OperatingExp()
+Dim y As Integer
+
+Opex_InflationRate(0) = 1
+
+For y = 1 To Term
+
+BasicOpex = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Opex_alpha, Opex_beta, Opex_Lower, Opex_Upper)
+Opex_InflationRate(y) = Opex_InflationRate(y - 1) * (1 + BasicOpex / 12)
+
+
+Next y
+
+End Sub
+
+
+Sub Inflation()
+
+        product = 1
+        For j = LBound(InflationAnnFactor) To UBound(InflationAnnFactor)
+
+                AnnualInflationRate = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Inf_alpha, Inf_beta, Inf_Lower, Inf_Upper)
+                product = product * (1 + AnnualInflationRate)
+
+                InflationAnnFactor(j) = product
+                InflationMonFactor(j) = AnnualInflationRate
+                
+        Next j
+        
+End Sub
+
+Sub RevenueFL()
+
+
+'calculate revenue
+    If StartT(i) + CharterLength(i) - 1 - t > 0 Then
+            'calculate future cash flows in a month
+            Revenue(i) = 30 * Rate(i) 'cash inflow in a month
+            'Amortization of every ship each month
+
+            'output results
+            Total_Revenue(t) = Total_Revenue(t) + Revenue(i)
+            Total_Amort(t) = Total_Amort(t) + Amort(i)
+            Total_ScrapIncome(t) = Total_ScrapIncome(t) + 0 'ScrapIncome
+            Total_Sales(t) = Total_Sales(t) + 0 'Sales
+            Total_Opex(t) = Total_Opex(t) + 30 * Opex(i)
+
+            
+    ElseIf StartT(i) + CharterLength(i) - 1 - t = 0 Then
+                                                       
+            'calculate future cash flows in the last month of the lease
+            Revenue(i) = 30 * Rate(i)
+      
+            'output results
+            Total_Revenue(t) = Total_Revenue(t) + Revenue(i)
+            Total_Amort(t) = Total_Amort(t) + Amort(i)
+            Total_ScrapIncome(t) = Total_ScrapIncome(t) + 0 'ScrapIncome
+            Total_Sales(t) = Total_Sales(t) + 0 'Sales
+            Total_Opex(t) = Total_Opex(t) + 30 * Opex(i)
+
+            Lease(i) = 0
+            Lease_Count(i) = Lease_Count(i) + 1
+            
+            'releasing intervals
+
+            ReleaseRound = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, Idle_alpha, Idle_beta, Idle_Lower, Idle_Upper)
+            
+            If ReleaseRound > Idle_Mean Then
+            ReleaseInterval = WorksheetFunction.RoundUp(ReleaseRound, 0)
+            Else: ReleaseInterval = WorksheetFunction.RoundDown(ReleaseRound, 0)
+            End If
+            
+            ReleaseInterval_Countdown(i) = ReleaseInterval
+    End If
+
+
+End Sub
+
+'no longer scrap inflation''''''''''''''''''''
+'now used only in computing sales price'''''''
+Sub ScrapInflation()
+    Public AnnualSInflationRate As Double
+    Dim u As Integer
+           
+        For u = 1 To t
+
+                AnnualSInflationRate = WorksheetFunction.Beta_Inv(Rnd(Seed) + 1E-13, ScrapInf_alpha, ScrapInf_beta, ScrapInf_Lower, ScrapInf_Upper)
+                SInflationFactor(i) = SInflationFactor(i) * AnnualSInflationRate
+                
+        Next u
+                
+End Sub
